@@ -74,7 +74,7 @@ http://github.com/wm123450405/zencoding
 				if (Object.an(value, 'undefined')) {
 					return name;
 				} else {
-					return name + '="' + value + '"';
+					return name + '="' + value.replace(/^"(.*)"$/g,'$1').replace(/^'(.*)'$/g,'$1') + '"';
 				}
 			} else {
 				return name;
@@ -170,9 +170,7 @@ http://github.com/wm123450405/zencoding
 					status = setProperty;
 				} else if (c == ']') {
 					status = setTag;
-				} else if (c == ',') {
-					status = setProperty;
-				} else if (c == '|') {
+				} else if (c == ',' || c == '|') {
 					status = setProperty;
 				} else if (c == ':') {
 					status = setStyle;

@@ -374,7 +374,7 @@ http://github.com/wm123450405/zencoding
 	}
 
 	function toXmlStr(str) {
-		str = str.replace(/(^|<\/script>)([.\r\n\t]*?)(<script[^>]*?>|$)/g, function(word, start, body, end) {
+		str = str.replace(/(^|<\/script>)((?:.|[\r\n\t])*?)(<script[^>]*?>|$)/g, function(word, start, body, end) {
 			return start + body.replace(/[\r\n]+/g, ' ').replace(/>\s+</g, '><').trim() + end;
 		});
 		str = str.replace(/<\w[^>]*?>/g, function(word) {

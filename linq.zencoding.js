@@ -50,7 +50,7 @@ http://github.com/wm123450405/zencoding
 		this.multi = 1;
 	};
 
-	NodeTree.prototype.toHtml = function() {
+	NodeTree.prototype.toHtml = function(obj) {
 		var classes = this.classes.length ? ' class="' + this.classes.join(' ') + '"' : '';
 		var id = this.id ? ' id="' + this.id + '"' : '';
 		var styles = this.attrs.zip(this.styles, function(name, value) {
@@ -74,7 +74,7 @@ http://github.com/wm123450405/zencoding
 				if (Object.an(value, 'undefined')) {
 					return name;
 				} else {
-					return name + '="' + value.replace(/^"(.*)"$/g,'$1').replace(/^'(.*)'$/g,'$1') + '"';
+					return name + '="' + value.replace(/^"(.*)"$/g, '$1').replace(/^'(.*)'$/g, '$1') + '"';
 				}
 			} else {
 				return name;
@@ -83,10 +83,25 @@ http://github.com/wm123450405/zencoding
 			return !Object.an(e, 'undefined')
 		}).join(' ');
 		attrs = attrs ? ' ' + attrs : attrs;
-		return (this.prev ? this.prev.toHtml() : '') + (this.tag ? ('<' + this.tag + id + classes + styles + attrs + '>' + (this.children.last() ? this.children.last().toHtml() : '') + '</' + this.tag + '>') : this.content || '').repeat(this.multi);
+		var html = '';
+		var thus = this;
+		console.log(this.tag, this.content);
+		if (!Object.an(this.multi, 'undefined') && isNaN(this.multi)) {
+			var array = (new Function('with(arguments[0]){return (' + this.multi.replace(/^`(.+)`$/g, '$1') + ');}')).call(obj, obj);
+			html = array.aggregate(function(o, s) {
+				return s + (thus.tag ? ('<' + thus.tag + id + classes + styles + attrs + '>' + (thus.children.last() ? thus.children.last().toHtml(o) : '') + '</' + thus.tag + '>') : thus.content || '').replace(/`([^`]+?)`/g, function(word, exp) {
+					return (new Function('with(arguments[0]){return (' + exp + ');}')).call(o, o);
+				});
+			}, html);
+		} else {
+			html = (this.tag ? ('<' + this.tag + id + classes + styles + attrs + '>' + (this.children.last() ? this.children.last().toHtml(obj) : '') + '</' + this.tag + '>') : this.content || '').replace(/`([^`]+?)`/g, function(word, exp) {
+				return (new Function('with(arguments[0]){return (' + exp + ');}')).call(obj, obj);
+			}).repeat(this.multi);
+		}
+		return (this.prev ? this.prev.toHtml(obj) : '') + html;
 	};
 
-	function zencode(zencoding) {
+	function zencode(zencoding, obj) {
 
 		function setTag(node, word) {
 			node.tag = word || node.tag;
@@ -102,7 +117,7 @@ http://github.com/wm123450405/zencoding
 			node.id = word || node.id;
 		}
 
-		function setContent(node, word) {
+		function addContent(node, word) {
 			//node.content = word || node.content;
 			var text = new NodeTree(node, node.children.last(), node.grouping);
 			text.content = word;
@@ -126,7 +141,7 @@ http://github.com/wm123450405/zencoding
 		}
 
 		function setMulti(node, word) {
-			node.multi = isNaN(word) ? node.multi : parseInt(word);
+			node.multi = isNaN(word) || word === '' ? word || node.multi || word : parseInt(word);
 		}
 
 		var nul = 0,
@@ -137,7 +152,7 @@ http://github.com/wm123450405/zencoding
 		var node = new NodeTree(null, null);
 		var grouping = node;
 		var status = setTag;
-		var symbol = '>+(){}^[],|:=.#*';
+		var symbol = '>+(){}^[]:=.#* ';
 		var inEl = false,
 			inStr = false,
 			inStrDou = false;
@@ -150,7 +165,7 @@ http://github.com/wm123450405/zencoding
 			} else if (!inEl && !inStr && !inStrDou && symbol.exists(c)) {
 				status(node, word);
 				if (c == '>') {
-					node = new NodeTree(node, null, grouping);
+					node = new NodeTree(node, node.children.last(), grouping);
 					status = setTag;
 				} else if (c == '+') {
 					node = new NodeTree(node.parent, node, grouping);
@@ -161,7 +176,7 @@ http://github.com/wm123450405/zencoding
 				} else if (c == ')') {
 					node = node.grouping;
 				} else if (c == '{') {
-					status = setContent;
+					status = addContent;
 				} else if (c == '}') {
 					status = setTag;
 				} else if (c == '^') {
@@ -170,7 +185,7 @@ http://github.com/wm123450405/zencoding
 					status = setProperty;
 				} else if (c == ']') {
 					status = setTag;
-				} else if (c == ',' || c == '|') {
+				} else if (c == ' ') {
 					status = setProperty;
 				} else if (c == ':') {
 					status = setStyle;
@@ -202,33 +217,24 @@ http://github.com/wm123450405/zencoding
 		while (node.next) {
 			node = node.next;
 		}
-		return node.toHtml();
+		return node.log().toHtml(obj);
 	};
 
 	define(Object.prototype, 'toHtml', function(zencoding) {
-		var thus = this;
-		return zencode(zencoding).replace(/`([^`]+?)`/g, function(word, exp) {
-			return (new Function('with(arguments[0]){return (' + exp + ');}')).call(thus, thus);
-		});
+		return zencode(zencoding, this);
 	});
 
 	define(Array.prototype, 'toHtml', function(zencoding) {
-		var html = zencode(zencoding);
 		return this.aggregate(function(o, s) {
-			return s + html.replace(/`([^`]+?)`/g, function(word, exp) {
-				return (new Function('with(arguments[0]){return (' + exp + ');}')).call(o, o);
-			});
+			return s + zencode(zencoding, o);
 		}, '');
 	});
 
 	define(String.prototype, 'toHtml', function(zencoding) {
 		if (arguments.length) {
-			var thus = this;
-			return zencode(zencoding).replace(/`([^`]+?)`/g, function(word, exp) {
-				return (new Function('with(arguments[0]){return (' + exp + ');}')).call(thus, thus);
-			});
+			return zencode(zencoding, this);
 		} else {
-			return zencode(this);
+			return zencode(this, {});
 		}
 	});
 })();

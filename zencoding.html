@@ -1,0 +1,14 @@
+﻿<script src="linq.simple.min.js"></script>
+<script src="linq.zencoding.js" type="text/javascript" charset="utf-8" async defer></script>
+<script>
+function srckeyup() {
+	var str = document.getElementById('src').value;
+	if (str.trim().startsWith('<')) {
+		document.getElementById('dest').value = str.toZencoding();
+	} else {
+		document.getElementById('dest').value = str.toHtml();
+	}
+}
+</script>
+<textarea id="src" onkeyup="srckeyup();" style="width:100%; height:200px;"></textarea>
+<textarea id="dest" style="width:100%; height:200px;"></textarea>

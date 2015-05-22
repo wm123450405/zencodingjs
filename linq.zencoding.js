@@ -85,7 +85,6 @@ http://github.com/wm123450405/zencoding
 		attrs = attrs ? ' ' + attrs : attrs;
 		var html = '';
 		var thus = this;
-		console.log(this.tag, this.content);
 		if (!Object.an(this.multi, 'undefined') && isNaN(this.multi)) {
 			var array = (new Function('with(arguments[0]){return (' + this.multi.replace(/^`(.+)`$/g, '$1') + ');}')).call(obj, obj);
 			html = array.aggregate(function(o, s) {
@@ -217,7 +216,7 @@ http://github.com/wm123450405/zencoding
 		while (node.next) {
 			node = node.next;
 		}
-		return node.log().toHtml(obj);
+		return node.toHtml(obj);
 	};
 
 	define(Object.prototype, 'toHtml', function(zencoding) {

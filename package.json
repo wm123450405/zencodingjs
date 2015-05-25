@@ -1,0 +1,25 @@
+{
+  "name": "zencodingjs",
+  "version": "1.0.0",
+  "description": "zencoding js",
+  "main": "linq.zencoding.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wm123450405/zencodingjs.git"
+  },
+  "keywords": [
+    "zencoding",
+    "js",
+    "javascript",
+    "emmet"
+  ],
+  "author": "wm",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/wm123450405/zencodingjs/issues"
+  },
+  "homepage": "https://github.com/wm123450405/zencodingjs#readme"
+}

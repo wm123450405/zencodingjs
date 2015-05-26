@@ -87,15 +87,30 @@ http://github.com/wm123450405/zencoding
 		var thus = this;
 		if (!Object.an(this.multi, 'undefined') && isNaN(this.multi)) {
 			var array = (new Function('with(arguments[0]){return (' + this.multi.replace(/^`(.+)`$/g, '$1') + ');}')).call(obj, obj);
-			html = array.aggregate(function(o, s) {
-				return s + (thus.tag ? ('<' + thus.tag + id + classes + styles + attrs + (thus.children.last() ? '>' + thus.children.last().toHtml(o) + '</' + thus.tag + '>' : simpleTags.exists(thus.tag) ? '/>' : ('></' + thus.tag + '>'))) : thus.parent && thus.parent.tag == 'pre' ? eval(thus.content || '""') : thus.content || '').replace(/`([^`]+?)`/g, function(word, exp) {
+			html = array.aggregate(function(o, s, i) {
+				return s + (thus.tag ? ('<' + thus.tag + id + classes + styles + attrs + (thus.children.last() ? '>' + thus.children.last().toHtml(o) + '</' + thus.tag + '>' : simpleTags.exists(thus.tag) ? '/>' : ('></' + thus.tag + '>'))).replace(/([^\\])(?=\$(@\-)?)/g, function(word, prefix, suffix){
+					if (suffix == '@-') {
+						return prefix + (array.length - i);
+					} else {
+						return prefix + (i + 1);
+					}
+				}).replace(/([^\\])\$(@\-)?/g, '$1') : thus.parent && thus.parent.tag == 'pre' ? eval(thus.content || '""') : thus.content || '').replace(/`([^`]+?)`/g, function(word, exp) {
 					return (new Function('with(arguments[0]){return (' + exp + ');}')).call(o, o);
-				});
+				})
 			}, html);
 		} else {
-			html = (this.tag ? ('<' + this.tag + id + classes + styles + attrs + (this.children.last() ? '>' + this.children.last().toHtml(obj) + '</' + this.tag + '>' : simpleTags.exists(thus.tag) ? '/>' : ('></' + thus.tag + '>'))) : thus.parent && thus.parent.tag == 'pre' ? eval(thus.content || '""') : thus.content || '').replace(/`([^`]+?)`/g, function(word, exp) {
-				return (new Function('with(arguments[0]){return (' + exp + ');}')).call(obj, obj);
-			}).repeat(this.multi);
+			this.multi = parseInt(thus.multi);
+			this.multi.loop(function(i) {
+				html += (thus.tag ? ('<' + thus.tag + id + classes + styles + attrs + (thus.children.last() ? '>' + thus.children.last().toHtml(obj) + '</' + thus.tag + '>' : simpleTags.exists(thus.tag) ? '/>' : ('></' + thus.tag + '>'))).replace(/([^\\])(?=\$(@\-)?)/g, function(word, prefix, suffix){
+					if (suffix == '@-') {
+						return prefix + (thus.multi - i);
+					} else {
+						return prefix + (i + 1);
+					}
+				}).replace(/([^\\])\$(@\-)?/g, '$1') : thus.parent && thus.parent.tag == 'pre' ? eval(thus.content || '""') : thus.content || '').replace(/`([^`]+?)`/g, function(word, exp) {
+					return (new Function('with(arguments[0]){return (' + exp + ');}')).call(obj, obj);
+				});
+			});
 		}
 		return (this.prev ? this.prev.toHtml(obj) : '') + html;
 	};
@@ -155,7 +170,7 @@ http://github.com/wm123450405/zencoding
 		var inEl = false,
 			inStr = false,
 			inStrDou = false,
-			inContent = false;
+			inContent = 0;
 		zencoding.forEach(function(c, i, p, n) {
 			var pt = isNull(p) ? nul : isWord(p) ? wrd : isNumber(p) ? num : sym
 			if (isWord(c)) {
@@ -163,9 +178,20 @@ http://github.com/wm123450405/zencoding
 			} else if (isNumber(c)) {
 				word += c;
 			} else if (!inEl && !inStr && !inStrDou && symbol.exists(c)) {
-				if (inContent && c != '}') {
-					word += c;
-					return;
+				if (inContent) {
+					if (c != '}') {
+						word += c;
+						if (c == '{') {
+							inContent++;
+						}
+						return;
+					} else {
+						inContent--;
+						if (inContent) {
+							word += c;
+							return;
+						}
+					}
 				}
 				status(node, word);
 				if (c == '>') {
@@ -187,10 +213,9 @@ http://github.com/wm123450405/zencoding
 					//console.log('out', node.tag, grouping.tag);
 				} else if (c == '{') {
 					status = addContent;
-					inContent = true;
+					inContent++;
 				} else if (c == '}') {
 					status = setTag;
-					inContent = false;
 				} else if (c == '^') {
 					node = node.parent;
 				} else if (c == '[') {
@@ -218,6 +243,8 @@ http://github.com/wm123450405/zencoding
 					inStr = !inStr;
 				} else if (!inStr && c == '\"') {
 					inStrDou = !inStrDou;
+				} else if ((inStr || inStrDou) && '`'.exists(c)) {
+					c = '\\x' + c.code().toString(16).leftPad(2, '0');
 				}
 				word += c;
 			}
@@ -229,7 +256,7 @@ http://github.com/wm123450405/zencoding
 		while (node.next) {
 			node = node.next;
 		}
-		return node.toHtml(obj);
+		return node.toHtml(obj).replace(/\\\$/g, '$$');
 	};
 
 	define(Object.prototype, 'toHtml', function(zencoding) {
@@ -279,7 +306,18 @@ http://github.com/wm123450405/zencoding
 
 	var simpleTags = ['input', 'img', 'br'];
 
-	function toZencoding(xml) {
+	function scriptToLine(script) {
+		script = script.replace(/^[\s\t]+|[\s\t]+$/mg, '').replace(/(.)[\r\n](.)/g, function(word, end, start) {
+			return !'+-*/;?:<>%.&|={},'.exists(end) && !'+-*/;?:<>%.&|={},'.exists(start) ? end + ';' + start : (end + start);
+		});
+		script = script.replace(/[\r\n]+/g, ' ').replace(/\$/g, '\\$');
+		script = script.replace(/\\x([0-9a-fA-F]{2})/g, function(word, num) {
+			return parseInt(num, 16).char();
+		});
+		return script;
+	}
+
+	function toZencoding(xml, high) {
 		if (xml.an(Array)) {
 			xml = xml.cast(castXml);
 			xml = xml.where(function(c) {
@@ -311,8 +349,7 @@ http://github.com/wm123450405/zencoding
 			}
 		})
 		attrs = attrs.where("=>name!='class'&&name!='id'").select(function(attr) {
-			/*
-			if (attr.name == 'style') {
+			if (high && attr.name == 'style') {
 				return attr.value.trim().replace(/\s+/g, ' ').split(';').select(function(e) {
 					if (e) {
 						var index = e.indexOf(':');
@@ -332,17 +369,16 @@ http://github.com/wm123450405/zencoding
 					}
 				}).wipe('').join(' ');
 			} else {
-				*/
-			if (attr.value.intersect(' "\'().#').length) {
-				return attr.name + '="' + attr.value.replace(/"/g, '\\x22') + '"';
-			} else {
-				if (attr.name == attr.value) {
-					return attr.name;
+				if (attr.value.intersect(' "\'().#').length) {
+					return attr.name + '="' + attr.value.replace(/"/g, '\\x22') + '"';
 				} else {
-					return attr.name + '=' + attr.value;
+					if (attr.name == attr.value) {
+						return attr.name;
+					} else {
+						return attr.name + '=' + attr.value;
+					}
 				}
 			}
-			//}
 		}).join(' ');
 		if (attrs) {
 			coding += '[' + attrs + ']';
@@ -350,15 +386,14 @@ http://github.com/wm123450405/zencoding
 		var children = toArray(xml.childNodes);
 		var hasChildren = false;
 		if (children.length) {
-			//coding = toZencoding(children, coding);
 			coding = children.where(function(c) {
 				return c.nodeName != '#comment';
 			}).aggregate(function(c, s, i, p) {
-				if (c.nodeName == '#text') {
+				if (c.nodeName == '#text' || c.nodeName == '#cdata-section') {
 					if (s.exists('>')) {
-						return '(' + s + '){' + (xml.tagName == 'pre' ? c.data.quote() : xml.tagName == 'script' ? 'eval(' + c.data.quote() + ')' : c.data.replace(/[\s\t\r\n]+/g, ' ')) + '}';
+						return '(' + s + '){' + (xml.tagName == 'pre' ? c.data.quote() : xml.tagName == 'script' ? scriptToLine(c.data) : c.data.replace(/[\s\t\r\n]+/g, ' ')) + '}';
 					} else {
-						return s + '{' + (xml.tagName == 'pre' ? c.data.quote() : xml.tagName == 'script' ? 'eval(' + c.data.quote() + ')' : c.data.replace(/[\s\t\r\n]+/g, ' ')) + '}';
+						return s + '{' + (xml.tagName == 'pre' ? c.data.quote() : xml.tagName == 'script' ? scriptToLine(c.data) : c.data.replace(/[\s\t\r\n]+/g, ' ')) + '}';
 					}
 				} else {
 					hasChildren = true;
@@ -375,7 +410,10 @@ http://github.com/wm123450405/zencoding
 
 	function toXmlStr(str) {
 		str = str.replace(/(^|<\/script>)((?:.|[\r\n\t])*?)(<script[^>]*?>|$)/g, function(word, start, body, end) {
-			return start + body.replace(/[\r\n]+/g, ' ').replace(/>\s+</g, '><').trim() + end;
+			return start + body.replace(/[\r\n]\s+(?=[\r\n])|[\r\n]+/g, ' ').replace(/>\s+</g, '><').trim() + end;
+		});
+		str = str.replace(/(<script[^>]*?>)((?:.|[\r\n\t])*?)(<\/script>)/g, function(word, start, body, end) {
+			return start + '<![CDATA[' + body.replace(/^\s*<\!\[CDATA\[((?:.|[\r\n\t])*)\]\]>\s*$/, '$1') + ']]>' + end;
 		});
 		str = str.replace(/<\w[^>]*?>/g, function(word) {
 			return word.replace(/\s(\w[_\w\d\-]*)(\s*(?=\=|\s\w|[\/>]))(\=\s*\"[^\"]*?\")?([\/>])?/g, function(word, name, space, value, end) {

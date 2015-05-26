@@ -1,6 +1,6 @@
 {
   "name": "zencodingjs",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "zencoding js",
   "main": "linq.zencoding.js",
   "scripts": {
@@ -16,8 +16,8 @@
     "javascript",
     "emmet"
   ],
-  "author": "wm",
-  "license": "ISC",
+  "author": "wm123450405",
+  "license": "wm",
   "bugs": {
     "url": "https://github.com/wm123450405/zencodingjs/issues"
   },

@@ -50,7 +50,8 @@ http://github.com/wm123450405/zencoding
 		this.multi = 1;
 	};
 
-	NodeTree.prototype.toHtml = function(obj) {
+	NodeTree.prototype.toHtml = function(obj, high) {
+		var thus = this;
 		var classes = this.classes.length ? ' class="' + this.classes.join(' ') + '"' : '';
 		var id = this.id ? ' id="' + this.id + '"' : '';
 		var styles = this.attrs.zip(this.styles, function(name, value) {
@@ -61,8 +62,7 @@ http://github.com/wm123450405/zencoding
 			}
 		}).where(function(e) {
 			return !Object.an(e, 'undefined')
-		}).join(';');
-		styles = styles ? ' style="' + styles + '"' : '';
+		});
 		var attrs = this.attrs.zip(this.styles, function(name, value) {
 			if (Object.an(value, 'undefined')) {
 				return name;
@@ -81,14 +81,57 @@ http://github.com/wm123450405/zencoding
 			}
 		}).where(function(e) {
 			return !Object.an(e, 'undefined')
-		}).join(' ');
+		});
+		if (high) {
+			attrs = attrs.select(function(value) {
+				highZencodingTo.forEach(function(html, i) {
+					if (value == html) {
+						value = highToHtml[i];
+						return false;
+					} else if (html.an(RegExp)) {
+						var result = value.replace(html, highToHtml[i]);
+						if (result != value) {
+							value = result;
+							//return false;
+						}
+					}
+				});
+				return value;
+			});
+			styles = styles.concat(attrs.where(function(value) {
+				var ss = value.indexOf(':');
+				var sp = value.indexOf('=');
+				return ss != -1 && (sp == -1 || sp > ss);
+			}));
+			attrs = attrs.where(function(value) {
+				var ss = value.indexOf(':');
+				var sp = value.indexOf('=');
+				return !(ss != -1 && (sp == -1 || sp > ss));
+			}).select(function(value) {
+				if (value.startsWith('-')) {
+					var ss = value.indexOf(':');
+					var sp = value.indexOf('=');
+					if (ss != -1 && (sp == -1 || sp > ss)) {
+						return value;
+					}
+				}
+				return value.substring(1);
+			});
+		}
+		if (this.type) {
+			attrs.push(tagType[this.tag].name + '="' + ((high ? tagType[this.tag].values.findFirst(function(value) {
+				return value.startsWith(thus.type);
+			}) : '') || this.type) + '"');
+		}
+		attrs = attrs.join(' ');
 		attrs = attrs ? ' ' + attrs : attrs;
+		styles = styles.join(';');
+		styles = styles ? ' style="' + styles + '"' : '';
 		var html = '';
-		var thus = this;
 		if (!Object.an(this.multi, 'undefined') && isNaN(this.multi)) {
 			var array = (new Function('with(arguments[0]){return (' + this.multi.replace(/^`(.+)`$/g, '$1') + ');}')).call(obj, obj);
 			html = array.aggregate(function(o, s, i) {
-				return s + (thus.tag ? ('<' + thus.tag + id + classes + styles + attrs + (thus.children.last() ? '>' + thus.children.last().toHtml(o) + '</' + thus.tag + '>' : simpleTags.exists(thus.tag) ? '/>' : ('></' + thus.tag + '>'))).replace(/([^\\])(?=\$(@\-)?)/g, function(word, prefix, suffix){
+				return s + (thus.tag ? ('<' + thus.tag + id + classes + styles + attrs + (thus.children.last() ? '>' + thus.children.last().toHtml(o) + '</' + thus.tag + '>' : simpleTags.exists(thus.tag) ? '/>' : ('></' + thus.tag + '>'))).replace(/([^\\])(?=\$(@\-)?)/g, function(word, prefix, suffix) {
 					if (suffix == '@-') {
 						return prefix + (array.length - i);
 					} else {
@@ -101,7 +144,7 @@ http://github.com/wm123450405/zencoding
 		} else {
 			this.multi = parseInt(thus.multi);
 			this.multi.loop(function(i) {
-				html += (thus.tag ? ('<' + thus.tag + id + classes + styles + attrs + (thus.children.last() ? '>' + thus.children.last().toHtml(obj) + '</' + thus.tag + '>' : simpleTags.exists(thus.tag) ? '/>' : ('></' + thus.tag + '>'))).replace(/([^\\])(?=\$(@\-)?)/g, function(word, prefix, suffix){
+				html += (thus.tag ? ('<' + thus.tag + id + classes + styles + attrs + (thus.children.last() ? '>' + thus.children.last().toHtml(obj) + '</' + thus.tag + '>' : simpleTags.exists(thus.tag) ? '/>' : ('></' + thus.tag + '>'))).replace(/([^\\])(?=\$(@\-)?)/g, function(word, prefix, suffix) {
 					if (suffix == '@-') {
 						return prefix + (thus.multi - i);
 					} else {
@@ -115,7 +158,7 @@ http://github.com/wm123450405/zencoding
 		return (this.prev ? this.prev.toHtml(obj) : '') + html;
 	};
 
-	function zencode(zencoding, obj) {
+	function zencode(zencoding, obj, high) {
 
 		function setTag(node, word) {
 			node.tag = word || node.tag;
@@ -156,6 +199,10 @@ http://github.com/wm123450405/zencoding
 
 		function setMulti(node, word) {
 			node.multi = isNaN(word) || word === '' ? word || node.multi || word : parseInt(word);
+		}
+
+		function setType(node, word) {
+			node.type = word || node.type;
 		}
 
 		var nul = 0,
@@ -225,7 +272,11 @@ http://github.com/wm123450405/zencoding
 				} else if (c == ' ') {
 					status = setProperty;
 				} else if (c == ':') {
-					status = setStyle;
+					if (status == setProperty) {
+						status = setStyle;
+					} else {
+						status = setType;
+					}
 				} else if (c == '=') {
 					status = setValue;
 				} else if (c == '.') {
@@ -256,24 +307,28 @@ http://github.com/wm123450405/zencoding
 		while (node.next) {
 			node = node.next;
 		}
-		return node.toHtml(obj).replace(/\\\$/g, '$$');
+		return node.toHtml(obj, high).replace(/\\\$/g, '$$');
 	};
 
-	define(Object.prototype, 'toHtml', function(zencoding) {
-		return zencode(zencoding, this);
+	define(Object.prototype, 'toHtml', function(zencoding, high) {
+		return zencode(zencoding, this, high);
 	});
 
-	define(Array.prototype, 'toHtml', function(zencoding) {
+	define(Array.prototype, 'toHtml', function(zencoding, high) {
 		return this.aggregate(function(o, s) {
-			return s + zencode(zencoding, o);
+			return s + zencode(zencoding, o, high);
 		}, '');
 	});
 
-	define(String.prototype, 'toHtml', function(zencoding) {
+	define(String.prototype, 'toHtml', function(zencoding, high) {
 		if (arguments.length) {
-			return zencode(zencoding, this);
+			if (Object.an(zencoding, String, 'string')) {
+				return zencode(zencoding, this, high);
+			} else {
+				return zencode(this, {}, zencoding);
+			}
 		} else {
-			return zencode(this, {});
+			return zencode(this, {}, false);
 		}
 	});
 
@@ -306,6 +361,82 @@ http://github.com/wm123450405/zencoding
 
 	var simpleTags = ['input', 'img', 'br'];
 
+	var tagType = {
+		'input': {
+			name: 'type',
+			values: ['checkbox', 'text', 'password', 'radio', 'button', 'image', 'hidden', 'file', 'submit', 'reset', 'search', 'email', 'url', 'date', 'datetime', 'month', 'week', 'time', 'number', 'color']
+		},
+		'form': {
+			name: 'method',
+			values: ['get', 'post']
+		}
+	}
+
+	var highHtmlTo = [
+		/(^|\s)(width|height|margin|padding)\:auto(?=$|\s)/g,
+		/(^|\s)(width|height|margin|padding)\:(\d+)(px|%|em)(?=$|\s)/g,
+		/(^|\s)(float|text-align)\:(left|right|center)(?=$|\s)/g,
+		/(^|\s)(margin|padding)-(right|left|bottom|top)\:(\d+)(px|%|em|rem)(?=$|\s)/g,
+		/(^|\s)(display)\:(none|block|inline)(?=$|\s)/g
+	];
+	var highToZencoding = [
+		function(w, sp, p, a) {
+			return sp + p.substring(0, 1) + 'a';
+		},
+		function(w, sp, p, n, u) {
+			return sp + p.substring(0, 1) + n + (u == 'rem' ? 'r' : u == 'em' ? 'e' : u == '%' ? 'p' : '');
+		},
+		function(w, sp, p, v) {
+			return sp + p.substring(0, 1) + v.substring(0, 1);
+		},
+		function(w, sp, p1, p2, n, u) {
+			return sp + p1.substring(0, 1) + p2.substring(0, 1) + n + (u == 'rem' ? 'r' : u == 'em' ? 'e' : u == '%' ? 'p' : '');
+		},
+		function(w, sp, p, v) {
+			return sp + p.substring(0, 1) + v.substring(0, 1);
+		}
+	];
+	var highZencodingTo = [
+		/(^|\s)(w|h|m|p)a(?=$|\s)/g,
+		/(^|\s)(w|h|m|p)(\d+)(e|p|r)?(?=$|\s)/g,
+		/(^|\s)(f|t)(l|r|c)(?=$|\s)/g,
+		/(^|\s)(m|p)(r|l|b|t)(\d+)(e|p|r)?(?=$|\s)/g,
+		/(^|\s)(d)(n|b|i)(?=$|\s)/g
+	];
+	var highToHtml = [
+		function(w, sp, p) {
+			return sp + ['width', 'height', 'margin', 'padding'].findFirst(function(e) {
+				return e.startsWith(p)
+			}) + ':auto';
+		},
+		function(w, sp, p, n, u) {
+			return sp + ['width', 'height', 'margin', 'padding'].findFirst(function(e) {
+				return e.startsWith(p)
+			}) + ':' + n + (u == 'r' ? 'rem' : u == 'e' ? 'em' : u == 'p' ? '%' : 'px');
+		},
+		function(w, sp, p, v) {
+			return sp + ['float', 'text-align'].findFirst(function(e) {
+				return e.startsWith(p)
+			}) + ':' + ['right', 'left'].findFirst(function(e) {
+				return e.startsWith(v)
+			});
+		},
+		function(w, sp, p1, p2, n, u) {
+			return sp + ['margin', 'padding'].findFirst(function(e) {
+				return e.startsWith(p1)
+			}) + '-' + ['right', 'left', 'bottom', 'top'].findFirst(function(e) {
+				return e.startsWith(p2)
+			}) + ':' + n + (u == 'r' ? 'rem' : u == 'e' ? 'em' : u == 'p' ? '%' : 'px');
+		},
+		function(w, sp, p, v) {
+			return sp + ['display'].findFirst(function(e) {
+				return e.startsWith(p)
+			}) + ':' + ['none', 'block', 'inline'].findFirst(function(e) {
+				return e.startsWith(v)
+			});
+		}
+	];
+
 	function scriptToLine(script) {
 		script = script.replace(/^[\s\t]+|[\s\t]+$/mg, '').replace(/(.)[\r\n](.)/g, function(word, end, start) {
 			return !'+-*/;?:<>%.&|={},'.exists(end) && !'+-*/;?:<>%.&|={},'.exists(start) ? end + ';' + start : (end + start);
@@ -329,26 +460,32 @@ http://github.com/wm123450405/zencoding
 				return c.nodeName != '#comment';
 			});
 			if (xml.length == 1) {
-				return toZencoding(xml[0]);
+				return toZencoding(xml[0], high);
 			} else {
 				return xml.select(function(e) {
-					return toZencoding(e);
+					return toZencoding(e, high);
 				}).join('+');
 			}
 		}
-		var coding = xml.tagName.toLowerCase();
+		var tag = xml.tagName.toLowerCase();
+		var coding = tag;
 		var attrs = toArray(xml.attributes);
+		if (high && tagType[tag]) {
+			attrs.where("=>name=='" + tagType[tag].name + "'").forEach(function(attr) {
+				coding += ':' + attr.value.trim();
+			});
+		}
+		attrs.where("=>name=='id'").forEach(function(attr) {
+			if (attr.value.trim()) {
+				coding += '#' + attr.value.trim();
+			}
+		});
 		attrs.where("=>name=='class'").forEach(function(attr) {
 			coding = attr.value.trim().replace(/\s+/g, ' ').split(' ').trim().aggregate(function(c, s) {
 				return s + '.' + c;
 			}, coding);
 		});
-		attrs.where("=>name=='id'").forEach(function(attr) {
-			if (attr.value.trim()) {
-				coding += '#' + attr.value.trim();
-			}
-		})
-		attrs = attrs.where("=>name!='class'&&name!='id'").select(function(attr) {
+		attrs = attrs.where("=>name!='class'&&name!='id'" + (high && tagType[tag] ? "&&name!='" + tagType[tag].name + "'" : "")).select(function(attr) {
 			if (high && attr.name == 'style') {
 				return attr.value.trim().replace(/\s+/g, ' ').split(';').select(function(e) {
 					if (e) {
@@ -356,10 +493,10 @@ http://github.com/wm123450405/zencoding
 						if (index == -1) {
 							return '';
 						} else {
-							var name = e.substring(0, index);
-							var value = e.substring(index + 1);
+							var name = e.substring(0, index).trim();
+							var value = e.substring(index + 1).trim();
 							if (value.intersect(' "\'().#').length) {
-								return name + ':' + value.replace(/"/g, '\\x22') + '"';
+								return name + ':"' + value.replace(/"/g, '\\x22') + '"';
 							} else {
 								return name + ':' + value;
 							}
@@ -369,17 +506,49 @@ http://github.com/wm123450405/zencoding
 					}
 				}).wipe('').join(' ');
 			} else {
+				attr.name = attr.name.trim();
+				attr.value = attr.value.trim();
 				if (attr.value.intersect(' "\'().#').length) {
 					return attr.name + '="' + attr.value.replace(/"/g, '\\x22') + '"';
 				} else {
 					if (attr.name == attr.value) {
-						return attr.name;
+						if (high && highZencodingTo.exists(function(html, i) {
+								attr.name.log();
+								if (attr.name == html) {
+									return true;
+								} else if (html.an(RegExp)) {
+									if (attr.name.match(html)) {
+										return true;
+									}
+								}
+								return false;
+							})) {
+							return '-' + attr.name;
+						} else {
+							return attr.name;
+						}
 					} else {
 						return attr.name + '=' + attr.value;
 					}
 				}
 			}
-		}).join(' ');
+		})
+		attrs = attrs.select(function(value) {
+			highHtmlTo.forEach(function(html, i) {
+				if (value == html) {
+					value = highToZencoding[i];
+					return false;
+				} else if (html.an(RegExp)) {
+					var result = value.replace(html, highToZencoding[i]);
+					if (result != value) {
+						value = result;
+						//return false;
+					}
+				}
+			});
+			return value;
+		});
+		attrs = attrs.join(' ');
 		if (attrs) {
 			coding += '[' + attrs + ']';
 		}
@@ -398,9 +567,9 @@ http://github.com/wm123450405/zencoding
 				} else {
 					hasChildren = true;
 					if (i == 0 || p.nodeName == '#text') {
-						return s + '>' + toZencoding(c);
+						return s + '>' + toZencoding(c, high);
 					} else {
-						return s + '+' + toZencoding(c);
+						return s + '+' + toZencoding(c, high);
 					}
 				}
 			}, coding);
@@ -436,12 +605,12 @@ http://github.com/wm123450405/zencoding
 		return str;
 	}
 
-	define(String.prototype, 'toZencoding', function() {
+	define(String.prototype, 'toZencoding', function(high) {
 		//toXmlStr(this).log();
-		return toArray(toXml('<root>' + toXmlStr(this) + '</root>').childNodes[0].childNodes).toZencoding();
+		return toArray(toXml('<root>' + toXmlStr(this) + '</root>').childNodes[0].childNodes).toZencoding(high);
 	});
 
-	define(Array.prototype, 'toZencoding', function() {
-		return toZencoding(this);
+	define(Array.prototype, 'toZencoding', function(high) {
+		return toZencoding(this, high);
 	});
 })();

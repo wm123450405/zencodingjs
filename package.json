@@ -1,6 +1,6 @@
 {
   "name": "zencodingjs",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "zencoding js",
   "main": "linq.zencoding.js",
   "scripts": {
